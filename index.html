@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scooters en libre-service</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+
+    #header h1 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    #status-wrap {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    #status {
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-weight: 500;
+      background: #1e293b;
+      color: #94a3b8;
+      transition: background .3s, color .3s;
+    }
+    #status.loading { background: #422006; color: #fbbf24; }
+    #status.ok      { background: #052e16; color: #4ade80; }
+    #status.error   { background: #450a0a; color: #f87171; }
+
+    #countdown {
+      color: #475569;
+      font-size: 0.7rem;
+      min-width: 80px;
+      text-align: right;
+    }
+
+    /* ── Map ── */
+    #map { flex: 1; }
+
+    /* ── Legend ── */
+    #legend {
+      position: absolute;
+      bottom: 36px;
+      right: 10px;
+      z-index: 900;
+      background: white;
+      border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
+      font-size: 0.78rem;
+      min-width: 110px;
+    }
+
+    #legend h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #94a3b8;
+      margin-bottom: 7px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 2px 0;
+    }
+
+    .legend-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,.12);
+      flex-shrink: 0;
+    }
+
+    .legend-label {
+      text-transform: capitalize;
+      color: #334155;
+    }
+
+    #legend-empty {
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* ── Bottom sheet ── */
+    #sheet-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.35);
+      z-index: 1100;
+    }
+    #sheet-backdrop.open { display: block; }
+
+    #sheet {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #fff;
+      border-radius: 18px 18px 0 0;
+      padding: 12px 20px 36px;
+      z-index: 1200;
+      box-shadow: 0 -4px 24px rgba(0,0,0,.2);
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+    }
+    #sheet.open { transform: translateY(0); }
+
+    #sheet-handle {
+      width: 36px; height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    #sheet-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: .7rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: #fff; margin-bottom: 12px;
+    }
+
+    #sheet-details {
+      font-size: .85rem; color: #475569;
+      margin-bottom: 18px; line-height: 1.9;
+    }
+    #sheet-details code {
+      background: #f1f5f9; padding: 1px 6px;
+      border-radius: 4px; font-size: .8rem;
+    }
+
+    #sheet-btn {
+      display: block; width: 100%; text-align: center;
+      color: #fff; padding: 14px;
+      border-radius: 12px;
+      font-size: .95rem; font-weight: 600;
+      text-decoration: none;
+      transition: filter .15s;
+    }
+    #sheet-btn:hover { filter: brightness(1.1); }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <h1>🛵 Scooters en libre-service</h1>
+    <div id="status-wrap">
+      <span id="status">Initialisation…</span>
+      <span id="countdown"></span>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="sheet-backdrop"></div>
+  <div id="sheet">
+    <div id="sheet-handle"></div>
+    <div id="sheet-badge"></div>
+    <div id="sheet-details"></div>
+    <a id="sheet-btn" href="#" target="_blank" rel="noopener"></a>
+  </div>
+
+  <div id="legend">
+    <h3>Opérateurs</h3>
+    <div id="legend-items">
+      <span id="legend-empty">Aucun scooter</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    // ── Configuration ──────────────────────────────────────────────────────────
+    const BASE_URL   = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+    const API_URL    = `${BASE_URL}/scooters`;
+
+
+    const REFRESH_MS = 30_000;
+    const FALLBACK   = [40.4168, -3.7038]; // Madrid si géoloc refusée
+    const ZOOM       = 14;
+
+    // Couleurs pour les opérateurs courants
+    const KNOWN_COLORS = {
+      cooltra:  '#0052ff',
+      acciona:  '#e4002b',
+      cabify:   '#7c3aed',
+      lime:    '#00c27e',
+      tier:    '#ff6900',
+      voi:     '#ff2d5a',
+      bird:    '#f59e0b',
+      dott:    '#ff6900',
+      bolt:    '#34d399',
+      spin:    '#f43f5e',
+      lyft:    '#ea0088',
+      hive:    '#6d28d9',
+    };
+
+    // Couleur déterministe pour opérateurs inconnus
+    function hashColor(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+      return `hsl(${Math.abs(h) % 360}, 65%, 42%)`;
+    }
+
+    function opColor(op) {
+      return KNOWN_COLORS[(op ?? '').toLowerCase()] ?? hashColor(op ?? 'inconnu');
+    }
+
+    // ── Géofence — layers par opérateur ────────────────────────────────────────
+    // Clés : 'cooltra_exclusions', 'acciona_boundary', 'acciona_exclusions'
+    const geofenceLayers = {};
+
+    const GEOFENCE_STYLES = {
+      cooltra_exclusions: {
+        default: { color: '#1d4ed8', weight: 1,   fillColor: '#93c5fd', fillOpacity: 0.18, interactive: false },
+        active:  { color: '#1d4ed8', weight: 1.5,  fillColor: '#93c5fd', fillOpacity: 0.45, interactive: false },
+      },
+      acciona_boundary: {
+        default: { color: '#b91c1c', weight: 2,   dashArray: '8 5', fillColor: '#fca5a5', fillOpacity: 0.05, interactive: false },
+        active:  { color: '#b91c1c', weight: 2.5, dashArray: '8 5', fillColor: '#fca5a5', fillOpacity: 0.12, interactive: false },
+      },
+      acciona_exclusions: {
+        default: { color: '#b91c1c', weight: 1,   fillColor: '#fca5a5', fillOpacity: 0.18, interactive: false },
+        active:  { color: '#b91c1c', weight: 1.5,  fillColor: '#fca5a5', fillOpacity: 0.45, interactive: false },
+      },
+    };
+
+    // Quels layers appartiennent à quel opérateur
+    const OPERATOR_LAYERS = {
+      cooltra: ['cooltra_exclusions'],
+      acciona: ['acciona_boundary', 'acciona_exclusions'],
+    };
+
+    function setGeofenceForOperator(operator) {
+      const activeKeys = operator ? (OPERATOR_LAYERS[operator] ?? []) : null;
+      for (const [key, layer] of Object.entries(geofenceLayers)) {
+        if (!layer) continue;
+        if (activeKeys === null) {
+          // Tout restaurer
+          if (!map.hasLayer(layer)) map.addLayer(layer);
+          layer.setStyle(GEOFENCE_STYLES[key]?.default ?? {});
+        } else if (activeKeys.includes(key)) {
+          // Mettre en valeur
+          if (!map.hasLayer(layer)) map.addLayer(layer);
+          layer.setStyle(GEOFENCE_STYLES[key]?.active ?? {});
+        } else {
+          // Masquer
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+        }
+      }
+    }
+
+    // ── Carte ──────────────────────────────────────────────────────────────────
+    const map = L.map('map', { zoomControl: true }).setView(FALLBACK, ZOOM);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // ── Géolocalisation ────────────────────────────────────────────────────────
+    // Centrage uniquement si l'utilisateur est dans la zone de Madrid
+    const MADRID_BOUNDS = { latMin: 40.0, latMax: 40.9, lngMin: -4.1, lngMax: -3.3 };
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          const { latitude: lat, longitude: lng } = coords;
+          if (lat >= MADRID_BOUNDS.latMin && lat <= MADRID_BOUNDS.latMax &&
+              lng >= MADRID_BOUNDS.lngMin && lng <= MADRID_BOUNDS.lngMax) {
+            map.setView([lat, lng], ZOOM);
+          }
+        },
+        err  => console.warn('Géolocalisation :', err.message)
+      );
+    }
+
+    // ── Géofence ───────────────────────────────────────────────────────────────
+    async function loadGeofence() {
+      try {
+        const res = await fetch(`${BASE_URL}/geofence`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const { cooltra, acciona } = data;
+
+        // Masque monde (basé sur la zone Cooltra) — grise tout l'extérieur
+        if (cooltra?.boundary) {
+          const worldRing = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+          const serviceHoles = cooltra.boundary.coordinates.map(poly =>
+            poly[0].map(([lng, lat]) => [lat, lng])
+          );
+          L.polygon([worldRing, ...serviceHoles], {
+            color:       '#0052ff',
+            weight:      2,
+            dashArray:   '8 5',
+            fillColor:   '#93c5fd',
+            fillOpacity: 0.40,
+            interactive: false,
+          }).addTo(map);
+
+          // Zones interdites Cooltra (bleu)
+          if (cooltra.exclusions) {
+            geofenceLayers.cooltra_exclusions = L.geoJSON(cooltra.exclusions, {
+              style: GEOFENCE_STYLES.cooltra_exclusions.default,
+            }).addTo(map);
+          }
+        }
+
+        // Contours de la zone de service Acciona (rouge pointillé)
+        if (acciona?.boundary) {
+          geofenceLayers.acciona_boundary = L.geoJSON(acciona.boundary, {
+            style: GEOFENCE_STYLES.acciona_boundary.default,
+          }).addTo(map);
+        }
+
+        // Zones interdites Acciona (rouge)
+        if (acciona?.exclusions) {
+          geofenceLayers.acciona_exclusions = L.geoJSON(acciona.exclusions, {
+            style: GEOFENCE_STYLES.acciona_exclusions.default,
+          }).addTo(map);
+        }
+
+      } catch (err) {
+        console.warn('[géofence]', err.message);
+      }
+    }
+    loadGeofence();
+
+    // ── Marqueurs ──────────────────────────────────────────────────────────────
+    // Map : id → { marker, operator }
+    const scooterMarkers = new Map();
+    const knownOps       = new Map(); // operator → color
+
+    const clusterGroup = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      iconCreateFunction(cluster) {
+        const count = cluster.getChildCount();
+        // Couleur dominante parmi les enfants
+        const children = cluster.getAllChildMarkers();
+        const freq = {};
+        children.forEach(m => {
+          const op = m.options._operator ?? 'inconnu';
+          freq[op] = (freq[op] ?? 0) + 1;
+        });
+        const dominant = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+        const color = opColor(dominant);
+        return L.divIcon({
+          className: '',
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
+          html: `<div style="
+            width:42px; height:42px;
+            border-radius:50%;
+            background:${color};
+            border:2.5px solid rgba(255,255,255,.9);
+            box-shadow:0 2px 10px rgba(0,0,0,.35);
+            display:flex; align-items:center; justify-content:center;
+            color:#fff; font-weight:700; font-size:13px;
+          ">${count}</div>`,
+        });
+      },
+    });
+    map.addLayer(clusterGroup);
+
+    function battColor(pct) {
+      if (pct == null) return '#94a3b8';
+      if (pct >= 20)   return '#22c55e';
+      return '#ef4444';
+    }
+
+    function buildIcon(operator, battery) {
+      const color = opColor(operator);
+      const bar = battery != null ? `
+        <div style="
+          width:26px; height:5px;
+          background:rgba(0,0,0,.25);
+          border-radius:999px;
+          overflow:hidden;
+        ">
+          <div style="
+            width:${battery}%;
+            height:100%;
+            background:${battColor(battery)};
+            border-radius:999px;
+          "></div>
+        </div>` : '';
+      return L.divIcon({
+        className:   '',
+        iconSize:    [44, 44],
+        iconAnchor:  [22, 22],
+        popupAnchor: [0, -26],
+        html: `
+          <div style="
+            width:44px; height:44px;
+            border-radius:50%;
+            background:${color};
+            border:2.5px solid rgba(255,255,255,.9);
+            box-shadow:0 2px 10px rgba(0,0,0,.3);
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:3px;
+          ">
+            <span style="font-size:20px; line-height:1; user-select:none;">🛵</span>
+            ${bar}
+          </div>`
+      });
+    }
+
+    // ── Deep links vers les apps opérateurs ────────────────────────────────────
+    // Custom scheme : ouvre l'app directement à la home (map), pas la dernière page active.
+    // L'app reçoit l'intent et navigue vers l'écran initial via onNewIntent.
+    const APP_DEEPLINKS = {
+      cooltra: () => `cooltra://`,
+      // HTTPS scheme = Android App Link vérifié → ouvre l'app directement (plus fiable que le custom scheme).
+      // Aucun deep link vehicle n'existe dans cette app (seul screen/GiftCard est enregistré).
+      acciona: () => `https://app.acciona-motosharing.com`,
+      // cabify:// ouvre l'app sur la home map (section Moped si déjà sélectionnée).
+      // Aucun deep link scooter spécifique n'existe : tous les cabify:// ouvrent JourneyBaseActivity.
+      // PopupVehicleActivity existe mais nécessite l'état interne de la map (ViewModel non accessible).
+      cabify: () => `cabify://`,
+    };
+
+    function appDeepLink(scooter) {
+      const fn = APP_DEEPLINKS[(scooter.operator ?? '').toLowerCase()];
+      return fn ? fn(scooter) : null;
+    }
+
+    // ── Bottom sheet ────────────────────────────────────────────────────────────
+    function showSheet(scooter) {
+      const { id, operator, battery, custom_id, model } = scooter;
+      const color = opColor(operator);
+      const label = operator
+        ? operator.charAt(0).toUpperCase() + operator.slice(1)
+        : 'Inconnu';
+
+      // Badge opérateur
+      const badge = document.getElementById('sheet-badge');
+      badge.textContent = `🛵 ${label}`;
+      badge.style.background = color;
+
+      // Détails — custom_id mis en valeur pour le retrouver dans l'app
+      const qrLine = custom_id
+        ? `<div style="font-size:1.1rem;font-weight:700;color:#0f172a;letter-spacing:.04em;">
+             🔢 <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;font-size:1rem;">${custom_id}</code>
+           </div>`
+        : '';
+      const battLine = battery != null
+        ? `<div>Batterie : <strong style="color:${battColor(battery)}">${battery}%</strong></div>`
+        : '';
+      const modelLine = model ? `<div style="color:#94a3b8;font-size:.8rem;">${model}</div>` : '';
+      document.getElementById('sheet-details').innerHTML = qrLine + battLine + modelLine;
+
+      // Bouton
+      const btn  = document.getElementById('sheet-btn');
+      const link = appDeepLink(scooter);
+      btn.textContent    = `Ouvrir dans ${label}`;
+      btn.style.background = color;
+      btn.href           = link ?? '#';
+      btn.style.opacity  = link ? '1' : '.4';
+      btn.style.pointerEvents = link ? '' : 'none';
+
+      // Hints opérateur-spécifiques (pas de deep link vehicle possible pour acciona ni cabify)
+      const hint = document.getElementById('sheet-hint');
+      if (hint) {
+        if (operator === 'acciona' && custom_id) {
+          hint.innerHTML = `<span style="font-size:.8rem;color:#64748b;">
+            Dans l'app : bouton <strong style="font-family:monospace;letter-spacing:.03em;">ID</strong>
+            → saisir <strong style="font-family:monospace;">${custom_id}</strong>
+          </span>`;
+          hint.style.display = '';
+        } else if (operator === 'cabify' && model) {
+          hint.innerHTML = `<span style="font-size:.8rem;color:#64748b;">
+            Dans l'app Cabify → onglet <strong>Moped</strong> → repérer
+            <strong style="font-family:monospace;">${model}</strong> sur la carte
+          </span>`;
+          hint.style.display = '';
+        } else {
+          hint.style.display = 'none';
+        }
+      }
+
+      setGeofenceForOperator(operator);
+      document.getElementById('sheet').classList.add('open');
+      document.getElementById('sheet-backdrop').classList.add('open');
+    }
+
+    function closeSheet() {
+      setGeofenceForOperator(null);
+      document.getElementById('sheet').classList.remove('open');
+      document.getElementById('sheet-backdrop').classList.remove('open');
+    }
+
+    document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
+
+    // ── Mise à jour des données ────────────────────────────────────────────────
+    function setStatus(msg, cls) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className   = cls;
+    }
+
+    function refreshLegend() {
+      const container = document.getElementById('legend-items');
+      const empty     = document.getElementById('legend-empty');
+
+      if (knownOps.size === 0) {
+        container.innerHTML = '';
+        container.appendChild(empty);
+        return;
+      }
+
+      container.innerHTML = '';
+      [...knownOps.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([op, color]) => {
+        const div = document.createElement('div');
+        div.className = 'legend-item';
+        div.innerHTML = `
+          <div class="legend-dot" style="background:${color}"></div>
+          <span class="legend-label">${op}</span>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function fetchAndUpdate() {
+      setStatus('Mise à jour…', 'loading');
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Serveur : HTTP ${res.status}`);
+        const scooters = await res.json();
+
+        if (!Array.isArray(scooters)) throw new Error('Réponse inattendue (non-tableau)');
+
+        // Reconstruire les marqueurs depuis zéro (simple + compatible cluster)
+        clusterGroup.clearLayers();
+        scooterMarkers.clear();
+
+        scooters.forEach((scooter) => {
+          const { id, lat, lng, operator, battery } = scooter;
+          if (!id || lat == null || lng == null) return;
+
+          knownOps.set((operator ?? 'inconnu').toLowerCase(), opColor(operator));
+
+          const marker = L.marker([lat, lng], {
+            icon: buildIcon(operator, battery),
+            _operator: (operator ?? 'inconnu').toLowerCase(),
+          }).on('click', () => showSheet(scooterMarkers.get(id).scooter));
+
+          scooterMarkers.set(id, { marker, operator, scooter });
+          clusterGroup.addLayer(marker);
+        });
+
+        refreshLegend();
+
+        const n   = scooters.length;
+        const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setStatus(`${n} scooter${n !== 1 ? 's' : ''} · ${now}`, 'ok');
+
+      } catch (err) {
+        setStatus(`Erreur — ${err.message}`, 'error');
+        console.error('[scooters]', err);
+      }
+    }
+
+    // ── Compte à rebours ───────────────────────────────────────────────────────
+    let _cdTimer  = null;
+    let _cdSecond = 0;
+
+    function startCountdown() {
+      clearInterval(_cdTimer);
+      _cdSecond = REFRESH_MS / 1000;
+      const el  = document.getElementById('countdown');
+      el.textContent = `(refresh dans ${_cdSecond}s)`;
+
+      _cdTimer = setInterval(() => {
+        _cdSecond--;
+        if (_cdSecond <= 0) {
+          el.textContent = '';
+          clearInterval(_cdTimer);
+        } else {
+          el.textContent = `(refresh dans ${_cdSecond}s)`;
+        }
+      }, 1000);
+    }
+
+    // ── Boucle principale ──────────────────────────────────────────────────────
+    function tick() {
+      fetchAndUpdate();
+      startCountdown();
+    }
+
+    tick();
+    setInterval(tick, REFRESH_MS);
+  </script>
+</body>
+</html>
