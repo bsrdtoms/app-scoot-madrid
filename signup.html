@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrarse — ScootMap</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/auth-common.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">🛵 ScootMap</a>
+    <nav>
+      <a href="/">Mapa</a>
+      <a href="/login">Iniciar sesión</a>
+    </nav>
+  </header>
+
+  <main class="card-wrap">
+    <div class="card">
+
+      <div class="card-logo">
+        <img src="/icon-192.png" alt="ScootMap" />
+        <div class="card-logo-name">ScootMap</div>
+        <div class="card-logo-sub">Madrid · Scooters en tiempo real</div>
+      </div>
+
+      <h1>Crear una cuenta</h1>
+      <p class="lead">Seguimiento de tus trayectos en todos los operadores.</p>
+
+      <div id="err" class="error" style="display:none;"></div>
+
+      <form id="f">
+        <label for="name">Nombre (opcional)</label>
+        <input type="text" id="name" autocomplete="given-name" placeholder="Tu nombre">
+
+        <label for="email">Email</label>
+        <input type="email" id="email" required autocomplete="email" placeholder="tu@email.com">
+
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" required minlength="6" autocomplete="new-password" placeholder="Mín. 6 caracteres">
+
+        <button type="submit" class="primary">Registrarse</button>
+      </form>
+
+      <p class="alt">¿Ya tienes cuenta? <a href="/login">Iniciar sesión</a></p>
+    </div>
+  </main>
+
+  <script>
+    const f = document.getElementById('f');
+    const err = document.getElementById('err');
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.style.display = 'none';
+      const btn = f.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = 'Creando cuenta…';
+      try {
+        const res = await fetch('/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email:    document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            name:     document.getElementById('name').value || null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error');
+        localStorage.setItem('scootmap_token', data.token);
+        localStorage.setItem('scootmap_user', JSON.stringify(data.user));
+        window.location.href = '/';
+      } catch (e) {
+        err.textContent = e.message;
+        err.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Registrarse';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil — ScootMap</title>
+  <link rel="stylesheet" href="/auth-common.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    main.profile {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      width: 100%;
+    }
+    .section {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, .06);
+      padding: 1.5rem;
+      margin-bottom: 1.2rem;
+    }
+    .section h2 {
+      margin: 0 0 1rem;
+      font-size: 1.1rem;
+      color: #0f172a;
+    }
+    .res {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .8rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      gap: 1rem;
+    }
+    .res:last-child { border-bottom: 0; }
+    .res .meta { font-size: .85rem; color: #64748b; }
+    .res .meta strong { color: #0f172a; font-size: .95rem; display: block; }
+    .badge {
+      display: inline-block;
+      padding: .15rem .55rem;
+      border-radius: 999px;
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge.pending   { background: #fef3c7; color: #92400e; }
+    .badge.completed { background: #d1fae5; color: #065f46; }
+    .badge.cancelled { background: #e5e7eb; color: #4b5563; }
+    .op-cooltra { color: #0052ff; }
+    .op-acciona { color: #e4002b; }
+    .op-cabify  { color: #7c3aed; }
+    .actions button {
+      background: none;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: .3rem .6rem;
+      font-size: .8rem;
+      cursor: pointer;
+      margin-left: .3rem;
+    }
+    .actions button:hover { background: #f8fafc; }
+    .link-op {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .6rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      flex-wrap: wrap;
+      gap: .4rem;
+    }
+    .link-op:last-child { border-bottom: 0; }
+    .link-op .link-form {
+      width: 100%;
+      display: flex;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin-top: .4rem;
+    }
+    .link-op input {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: .35rem .6rem;
+      font-size: .85rem;
+      flex: 1;
+      min-width: 80px;
+    }
+    .link-op button.link-btn {
+      background: #7c3aed;
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: .35rem .7rem;
+      font-size: .82rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .link-op button.link-btn:disabled { opacity: .5; cursor: default; }
+    .link-msg { font-size: .8rem; color: #64748b; margin-top: .2rem; width: 100%; }
+    .empty {
+      color: #94a3b8;
+      font-size: .9rem;
+      text-align: center;
+      padding: 1.5rem 0;
+    }
+    button.logout {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 0;
+      border-radius: 8px;
+      padding: .5rem 1rem;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+
+    /* ── Estadísticas ───────────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .8rem;
+      margin-bottom: 1.2rem;
+    }
+    @media (max-width: 480px) {
+      .stat-grid { grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+    }
+    .stat-card {
+      background: linear-gradient(135deg, #f0f4ff 0%, #f5f3ff 100%);
+      border-radius: 14px;
+      padding: .9rem .7rem;
+      text-align: center;
+    }
+    .stat-card .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #1e1b4b;
+      line-height: 1.1;
+    }
+    .stat-card .stat-label {
+      font-size: .7rem;
+      color: #64748b;
+      margin-top: .25rem;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .chart-tabs {
+      display: flex;
+      gap: .4rem;
+      margin-bottom: .9rem;
+      flex-wrap: wrap;
+    }
+    .chart-tabs button {
+      background: #f1f5f9;
+      border: none;
+      border-radius: 999px;
+      padding: .3rem .75rem;
+      font-size: .78rem;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .chart-tabs button.active {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 180px;
+    }
+    .stats-sub {
+      font-size: .78rem;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: .5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">🛵 ScootMap</a>
+    <nav>
+      <a href="/">Mapa</a>
+      <button class="logout" onclick="logout()">Cerrar sesión</button>
+    </nav>
+  </header>
+
+  <main class="profile">
+    <div class="section">
+      <h2>Cuenta</h2>
+      <div id="user-info"></div>
+    </div>
+
+    <div class="section">
+      <h2>Mis estadísticas</h2>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-visits">—</div>
+          <div class="stat-label">Visitas este mes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-time">—</div>
+          <div class="stat-label">Tiempo en la app</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-avg">—</div>
+          <div class="stat-label">Media por visita</div>
+        </div>
+      </div>
+
+      <div class="chart-tabs">
+        <button class="active" data-mode="visits" onclick="setChartMode('visits',this)">Visitas</button>
+        <button data-mode="duration" onclick="setChartMode('duration',this)">Tiempo</button>
+        <button data-mode="redirections" onclick="setChartMode('redirections',this)">Redirecciones</button>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="stats-chart"></canvas>
+      </div>
+      <div class="stats-sub" id="stats-sub">Últimos 30 días</div>
+      <div class="empty" id="stats-empty" style="display:none">Sin datos por el momento.</div>
+    </div>
+
+    <div class="section">
+      <h2>Mis redirecciones a las aplicaciones</h2>
+      <div id="reservations"></div>
+    </div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('scootmap_token');
+    if (!token) { window.location.href = '/login'; }
+
+    function logout() {
+      localStorage.removeItem('scootmap_token');
+      localStorage.removeItem('scootmap_user');
+      window.location.href = '/';
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: {
+          ...(opts.headers || {}),
+          'Authorization': `Bearer ${token}`,
+          ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      });
+      if (res.status === 401) { logout(); return; }
+      return res.json();
+    }
+
+    function fmtDate(ts) {
+      return new Date(ts).toLocaleString('es-ES', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    async function loadAll() {
+      const me = await api('/me');
+      document.getElementById('user-info').innerHTML = `
+        <div><strong>${me.user.name || '—'}</strong></div>
+        <div style="color:#64748b;font-size:.9rem;">${me.user.email}</div>
+      `;
+
+      const reservations = await api('/reservations');
+      const container = document.getElementById('reservations');
+      if (!reservations.length) {
+        container.innerHTML = '<div class="empty">Ninguna redirección por el momento.</div>';
+        return;
+      }
+      container.innerHTML = reservations.map(r => `
+        <div class="res">
+          <div class="meta">
+            <strong class="op-${r.operator}">
+              ${r.operator.toUpperCase()} ${r.model ? '· ' + r.model : ''}
+            </strong>
+            <span>${fmtDate(r.created_at)}</span>
+          </div>
+          <span class="badge completed">abierto</span>
+        </div>
+      `).join('');
+    }
+
+    loadAll();
+    loadStats();
+
+    // ── Statistiques ───────────────────────────────────────────────────────
+    function fmtDuration(sec) {
+      if (!sec || sec < 5) return '< 1 min';
+      if (sec < 3600) return Math.round(sec / 60) + ' min';
+      const h = Math.floor(sec / 3600);
+      const m = Math.round((sec % 3600) / 60);
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+
+    function getLast30Days() {
+      return Array.from({ length: 30 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (29 - i));
+        return d.toISOString().slice(0, 10);
+      });
+    }
+
+    const CHART_CONFIG = {
+      visits:       { label: 'Visitas',        color: '#3b82f6', fmt: v => v },
+      duration:     { label: 'Tiempo (min)',   color: '#7c3aed', fmt: v => Math.round(v / 60) },
+      redirections: { label: 'Redirecciones', color: '#10b981', fmt: v => v },
+    };
+
+    let statsChart = null;
+    let statsData  = null;
+    let currentMode = 'visits';
+
+    function setChartMode(mode, btn) {
+      currentMode = mode;
+      document.querySelectorAll('.chart-tabs button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      if (statsData) renderChart(statsData, mode);
+    }
+
+    function renderChart(data, mode) {
+      const days   = getLast30Days();
+      const byDay  = Object.fromEntries(data.daily.map(d => [d.date, d]));
+      const cfg    = CHART_CONFIG[mode];
+      const values = days.map(d => cfg.fmt(byDay[d]?.[mode] ?? 0));
+      const labels = days.map(d => {
+        const dt = new Date(d + 'T12:00:00');
+        return dt.getDate() + ' ' + dt.toLocaleString('es-ES', { month: 'short' });
+      });
+
+      const hasData = values.some(v => v > 0);
+      document.getElementById('stats-empty').style.display = hasData ? 'none' : '';
+      document.querySelector('.chart-wrap').style.display  = hasData ? '' : 'none';
+      document.getElementById('stats-sub').style.display   = hasData ? '' : 'none';
+
+      if (!hasData) return;
+
+      const ctx = document.getElementById('stats-chart').getContext('2d');
+
+      // Gradient fill
+      const grad = ctx.createLinearGradient(0, 0, 0, 180);
+      grad.addColorStop(0, cfg.color + '55');
+      grad.addColorStop(1, cfg.color + '00');
+
+      if (statsChart) statsChart.destroy();
+      statsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: cfg.label,
+            data: values,
+            backgroundColor: grad,
+            borderColor: cfg.color,
+            borderWidth: 1.5,
+            borderRadius: 4,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  const v = ctx.parsed.y;
+                  if (mode === 'duration') return `${v} min`;
+                  if (mode === 'visits')   return `${v} visita${v !== 1 ? 's' : ''}`;
+                  return `${v} redirección${v !== 1 ? 'es' : ''}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                maxTicksLimit: 7,
+                font: { size: 10 },
+                color: '#94a3b8',
+                maxRotation: 0,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#f1f5f9' },
+              ticks: { font: { size: 10 }, color: '#94a3b8', precision: 0 },
+            },
+          },
+        },
+      });
+    }
+
+    async function loadStats() {
+      const data = await api('/stats');
+      if (!data) return;
+      statsData = data;
+
+      document.getElementById('stat-visits').textContent = data.month_visits;
+      document.getElementById('stat-time').textContent   = fmtDuration(data.month_duration);
+      document.getElementById('stat-avg').textContent    = fmtDuration(data.avg_duration);
+
+      renderChart(data, currentMode);
+    }
+
+    // ── Tracking de session ────────────────────────────────────────────────
+    (async () => {
+      const t = localStorage.getItem('scootmap_token');
+      if (!t) return;
+      const startTime = Date.now();
+      let sid = null;
+      try {
+        const r = await fetch('/stats/session', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        });
+        if (r.ok) sid = (await r.json()).id;
+      } catch {}
+      if (!sid) return;
+
+      const ping = () => fetch('/stats/ping', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid, duration: Math.round((Date.now() - startTime) / 1000) }),
+      }).catch(() => {});
+
+      const iv = setInterval(ping, 30_000);
+      window.addEventListener('beforeunload', () => {
+        clearInterval(iv);
+        fetch('/stats/ping', {
+          method: 'POST', keepalive: true,
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, duration: Math.round((Date.now() - startTime) / 1000) }),
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

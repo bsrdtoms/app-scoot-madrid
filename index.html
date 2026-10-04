@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScootMap Madrid</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ScootMap" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100dvh; /* dynamic viewport — s'adapte à la barre d'adresse mobile */
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ════════════════════════════════════════════
+       HEADER — base (desktop)
+    ════════════════════════════════════════════ */
+    #header {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    #header h1 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    /* Desktop : titre court caché */
+    .title-short { display: none; }
+    .title-full  { display: inline; }
+    #status-wrap {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+    #status {
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-weight: 500;
+      background: #1e293b;
+      color: #94a3b8;
+      transition: background .3s, color .3s;
+    }
+    #status.loading { background: #422006; color: #fbbf24; }
+    #status.ok      { background: #052e16; color: #4ade80; }
+    #status.error   { background: #450a0a; color: #f87171; }
+    #countdown {
+      color: #475569;
+      font-size: 0.7rem;
+      min-width: 80px;
+      text-align: right;
+    }
+
+    /* ════════════════════════════════════════════
+       MAP
+    ════════════════════════════════════════════ */
+    #map { flex: 1; }
+
+    /* ════════════════════════════════════════════
+       LEGEND — base (desktop)
+    ════════════════════════════════════════════ */
+    #legend {
+      position: absolute;
+      bottom: 36px;
+      right: 10px;
+      z-index: 900;
+      background: white;
+      border-radius: 10px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
+      font-size: 0.78rem;
+      min-width: 110px;
+    }
+    #legend h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #94a3b8;
+      margin-bottom: 7px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 2px 0;
+    }
+    .legend-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,.12);
+      flex-shrink: 0;
+    }
+    .legend-label { text-transform: capitalize; color: #334155; }
+    #legend-empty { color: #94a3b8; font-style: italic; }
+
+    /* ════════════════════════════════════════════
+       BOTTOM SHEET
+    ════════════════════════════════════════════ */
+    #sheet-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.35);
+      z-index: 1100;
+    }
+    #sheet-backdrop.open { display: block; }
+
+    #sheet {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #fff;
+      border-radius: 18px 18px 0 0;
+      padding: 0;
+      z-index: 1200;
+      box-shadow: 0 -4px 24px rgba(0,0,0,.2);
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      max-height: 80vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #sheet.open { transform: translateY(0); }
+
+    #sheet-scroll {
+      padding: 12px 20px max(20px, env(safe-area-inset-bottom));
+    }
+    #sheet-actions { margin-bottom: 14px; }
+
+    #sheet-handle {
+      width: 36px; height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+    #sheet-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: .7rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: #fff; margin-bottom: 12px;
+    }
+    #sheet-details {
+      font-size: .85rem; color: #475569;
+      margin-bottom: 10px; line-height: 1.9;
+    }
+    #sheet-details code {
+      background: #f1f5f9; padding: 1px 6px;
+      border-radius: 4px; font-size: .8rem;
+    }
+    #sheet-btn {
+      display: block; width: 100%; text-align: center;
+      color: #fff; padding: 14px;
+      border-radius: 12px;
+      font-size: .95rem; font-weight: 600;
+      text-decoration: none;
+      transition: filter .15s;
+    }
+    #sheet-btn:hover { filter: brightness(1.1); }
+
+    /* ════════════════════════════════════════════
+       BANNIÈRE PWA
+    ════════════════════════════════════════════ */
+    #pwa-banner {
+      display: none;
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      opacity: 0;
+      z-index: 1050;
+      background: #0f172a; color: #f8fafc;
+      border-radius: 16px;
+      padding: 14px 14px 14px 16px;
+      box-shadow: 0 4px 28px rgba(0,0,0,.55);
+      align-items: center; gap: 12px;
+      max-width: 360px;
+      width: calc(100% - 32px);
+      border: 1px solid rgba(255,255,255,.1);
+      transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s ease;
+    }
+    #pwa-banner.visible { display: flex; }
+    #pwa-banner.visible.shown {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    #pwa-banner-text { flex: 1; }
+    #pwa-banner-title { font-weight: 700; font-size: .92rem; }
+    #pwa-banner-hint  { font-size: .76rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+    #pwa-install-btn {
+      background: #3b82f6; color: #fff;
+      border: none; border-radius: 10px;
+      padding: 9px 16px; font-weight: 600; font-size: .84rem;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    }
+    #pwa-dismiss-btn {
+      background: transparent; color: #64748b;
+      border: none; font-size: 1.4rem;
+      cursor: pointer; padding: 2px 6px; line-height: 1; flex-shrink: 0;
+    }
+
+    /* ════════════════════════════════════════════
+       MOBILE — ≤ 600px
+    ════════════════════════════════════════════ */
+    @media (max-width: 600px) {
+
+      /* Header ultra-compact : logo + point de couleur + statut */
+      #header {
+        padding: 8px 12px;
+        padding-top: max(8px, env(safe-area-inset-top));
+      }
+      #header h1 {
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -.01em;
+      }
+      /* Cacher le compte à rebours sur mobile (trop verbeux) */
+      #countdown { display: none; }
+      /* Titre court sur mobile */
+      .title-full { display: none; }
+      .title-short { display: inline; }
+
+      /* Statut plus compact */
+      #status { font-size: .7rem; padding: 3px 7px; }
+
+      /* Auth : liens texte → icônes rondes */
+      #auth-nav a[href="/login"]     { display: none; }
+      #auth-nav a[href="/signup"] {
+        font-size: 0;            /* masquer le texte */
+        padding: 0;
+        background: transparent;
+      }
+      #auth-nav a[href="/signup"]::before {
+        content: '👤';
+        font-size: 1.2rem;
+        display: block;
+      }
+
+      /* Légende : coins arrondis, plus petite, bas-gauche pour ne pas gêner */
+      #legend {
+        bottom: 16px;
+        right: auto;
+        left: 10px;
+        padding: 7px 10px;
+        font-size: .72rem;
+        min-width: 90px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.22);
+      }
+      #legend h3 { font-size: .6rem; margin-bottom: 5px; }
+      .legend-dot { width: 9px; height: 9px; }
+
+      /* Sheet : prend plus de hauteur, coins bien arrondis */
+      #sheet {
+        max-height: 85vh;
+        border-radius: 22px 22px 0 0;
+      }
+      #sheet-scroll {
+        padding: 10px 16px max(24px, env(safe-area-inset-bottom));
+      }
+      #sheet-btn { padding: 16px; font-size: 1rem; border-radius: 14px; }
+
+      /* Bannière PWA : toujours au-dessus du sheet */
+      #pwa-banner { bottom: 16px; }
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* ── Point de localisation utilisateur ── */
+    .user-dot-icon { background: none !important; border: none !important; }
+    .user-dot-svg  { transition: transform 0.3s ease-out; overflow: visible; }
+
+  </style>
+</head>
+<body>
+
+  <!-- ── Panneau "Home" (overlay) ─────────────────────────────────────────── -->
+  <div id="home-overlay" style="
+    display:none;position:fixed;inset:0;z-index:9000;
+    background:rgba(0,0,0,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+    align-items:flex-end;justify-content:center;
+  ">
+    <div style="
+      background:#0f172a;border-radius:28px 28px 0 0;
+      width:100%;max-width:480px;padding:2rem 1.6rem max(2rem,env(safe-area-inset-bottom));
+      box-shadow:0 -8px 40px rgba(0,0,0,.6);
+      display:flex;flex-direction:column;align-items:center;gap:.85rem;
+      animation:slideUp .3s cubic-bezier(.32,1.1,.55,1);
+    ">
+      <div style="width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,.2);margin-bottom:.4rem;"></div>
+      <img src="/icon-192.png" style="width:72px;height:72px;border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.1),0 8px 32px rgba(59,130,246,.4);">
+      <div style="text-align:center;">
+        <div style="font-size:1.8rem;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,#f8fafc 30%,#93c5fd 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">ScootMap</div>
+        <div style="font-size:.88rem;color:#94a3b8;margin-top:.3rem;line-height:1.5;max-width:280px;">
+          Cooltra · Acciona · Cabify en tiempo real en un solo mapa
+        </div>
+      </div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:center;margin-bottom:.2rem;">
+        <span style="font-size:.7rem;font-weight:700;padding:.2rem .6rem;border-radius:999px;border:1px solid #4d8bff;color:#4d8bff;">Cooltra</span>
+        <span style="font-size:.7rem;font-weight:700;padding:.2rem .6rem;border-radius:999px;border:1px solid #ff5c7a;color:#ff5c7a;">Acciona</span>
+        <span style="font-size:.7rem;font-weight:700;padding:.2rem .6rem;border-radius:999px;border:1px solid #a78bfa;color:#a78bfa;">Cabify</span>
+      </div>
+      <!-- Bouton install -->
+      <button id="home-install-btn" onclick="homeHandleInstall()" style="
+        width:100%;padding:.85rem;border-radius:14px;border:1px solid rgba(59,130,246,.4);
+        background:rgba(59,130,246,.12);color:#93c5fd;font-size:.95rem;font-weight:600;
+        cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;
+      ">📲 Añadir a la pantalla de inicio</button>
+      <div id="home-install-msg" style="font-size:.8rem;color:#94a3b8;text-align:center;display:none;"></div>
+      <!-- Bouton fermer -->
+      <button onclick="closeHomeOverlay()" style="
+        width:100%;padding:.85rem;border-radius:14px;border:1px solid rgba(255,255,255,.1);
+        background:rgba(255,255,255,.05);color:#f8fafc;font-size:.95rem;font-weight:600;
+        cursor:pointer;
+      ">✕ Cerrar</button>
+      <!-- Lien profil / login -->
+      <div style="font-size:.82rem;color:#475569;">
+        <a id="home-auth-link" href="/login" style="color:#60a5fa;font-weight:600;text-decoration:none;">👤 Iniciar sesión</a>
+        &nbsp;·&nbsp;
+        <a href="/signup" style="color:#60a5fa;font-weight:600;text-decoration:none;">Crear cuenta</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="header">
+    <h1><a href="#" onclick="openHomeOverlay();return false;" style="color:inherit;text-decoration:none;"><span class="title-full">🛵 Scooters en libre servicio</span><span class="title-short">🛵 ScootMap</span></a></h1>
+    <div id="status-wrap">
+      <span id="status">Iniciando…</span>
+      <span id="countdown"></span>
+    </div>
+    <div id="auth-nav" style="position:absolute;top:10px;right:12px;font-size:.85rem;display:flex;align-items:center;gap:.5rem;">
+      <button id="pwa-install-nav" onclick="if(window._pwaInstallTrigger){window._pwaShow&&window._pwaShow();window._pwaInstallTrigger();}" title="Añadir a la pantalla de inicio" style="display:none;background:rgba(255,255,255,.15);border:none;border-radius:999px;padding:.3rem .55rem;font-size:.85rem;cursor:pointer;color:#fff;">📲</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Bannière PWA "Ajouter à l'écran d'accueil" -->
+  <div id="pwa-banner" role="dialog" aria-label="Añadir ScootMap a la pantalla de inicio">
+    <span style="font-size:1.7rem;flex-shrink:0;">🛵</span>
+    <div id="pwa-banner-text">
+      <div id="pwa-banner-title">ScootMap</div>
+      <div id="pwa-banner-hint">Añadir a la pantalla de inicio</div>
+    </div>
+    <button id="pwa-install-btn">Añadir</button>
+    <button id="pwa-dismiss-btn" aria-label="Cerrar">×</button>
+  </div>
+
+  <div id="sheet-backdrop"></div>
+  <div id="sheet">
+    <div id="sheet-scroll">
+      <div id="sheet-handle"></div>
+      <div id="sheet-badge"></div>
+      <!-- Bouton principal juste sous le badge — toujours visible à l'ouverture -->
+      <div id="sheet-actions">
+        <a id="sheet-btn" href="#" target="_blank" rel="noopener" onclick="trackRedirect()"></a>
+      </div>
+      <!-- Détails en dessous (scrollables si besoin) -->
+      <div id="sheet-details"></div>
+      <div id="sheet-hint" style="display:none;text-align:center;margin-top:6px;margin-bottom:8px;"></div>
+    </div>
+  </div>
+
+  <div id="legend">
+    <h3>Operadores</h3>
+    <div id="legend-items">
+      <span id="legend-empty">Sin scooters</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    // ── Configuration ──────────────────────────────────────────────────────────
+    const BASE_URL   = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+    const API_URL    = `${BASE_URL}/scooters`;
+
+    // ── Auth ───────────────────────────────────────────────────────────────────
+    function authToken() { return localStorage.getItem('scootmap_token'); }
+    function authUser()  { try { return JSON.parse(localStorage.getItem('scootmap_user') || 'null'); } catch { return null; } }
+
+    function renderAuthNav() {
+      const nav = document.getElementById('auth-nav');
+      const user = authUser();
+      if (user) {
+        nav.innerHTML = `
+          <a href="/profile" style="color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:.35rem .7rem;border-radius:999px;">
+            👤 ${user.name || user.email}
+          </a>`;
+      } else {
+        nav.innerHTML = `
+          <a href="/login"  style="color:#fff;text-decoration:none;margin-right:.6rem;">Iniciar sesión</a>
+          <a href="/signup" style="color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:.35rem .7rem;border-radius:999px;">Registrarse</a>`;
+      }
+    }
+
+    async function apiAuth(path, opts = {}) {
+      const t = authToken();
+      return fetch(`${BASE_URL}${path}`, {
+        ...opts,
+        headers: {
+          ...(opts.headers || {}),
+          ...(t ? { 'Authorization': `Bearer ${t}` } : {}),
+          ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      });
+    }
+
+const REFRESH_MS = 30_000;
+    const FALLBACK   = [40.4168, -3.7038]; // Madrid si géoloc refusée
+    const ZOOM       = 14;
+
+    // Couleurs pour les opérateurs courants
+    const KNOWN_COLORS = {
+      cooltra:  '#0052ff',
+      acciona:  '#e4002b',
+      cabify:   '#7c3aed',
+      lime:    '#00c27e',
+      tier:    '#ff6900',
+      voi:     '#ff2d5a',
+      bird:    '#f59e0b',
+      dott:    '#ff6900',
+      bolt:    '#34d399',
+      spin:    '#f43f5e',
+      lyft:    '#ea0088',
+      hive:    '#6d28d9',
+    };
+
+    // Couleur déterministe pour opérateurs inconnus
+    function hashColor(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+      return `hsl(${Math.abs(h) % 360}, 65%, 42%)`;
+    }
+
+    function opColor(op) {
+      return KNOWN_COLORS[(op ?? '').toLowerCase()] ?? hashColor(op ?? 'inconnu');
+    }
+
+    // ── Géofence — layers par opérateur ────────────────────────────────────────
+    // Clés : 'cooltra_exclusions', 'acciona_boundary', 'acciona_exclusions'
+    const geofenceLayers = {};
+
+    const GEOFENCE_STYLES = {
+      cooltra_exclusions: {
+        default: { color: '#1d4ed8', weight: 1,   fillColor: '#93c5fd', fillOpacity: 0.18, interactive: false },
+        active:  { color: '#1d4ed8', weight: 1.5,  fillColor: '#93c5fd', fillOpacity: 0.45, interactive: false },
+      },
+      acciona_boundary: {
+        default: { color: '#b91c1c', weight: 2,   dashArray: '8 5', fillColor: '#fca5a5', fillOpacity: 0.05, interactive: false },
+        active:  { color: '#b91c1c', weight: 2.5, dashArray: '8 5', fillColor: '#fca5a5', fillOpacity: 0.12, interactive: false },
+      },
+      acciona_exclusions: {
+        default: { color: '#b91c1c', weight: 1,   fillColor: '#fca5a5', fillOpacity: 0.18, interactive: false },
+        active:  { color: '#b91c1c', weight: 1.5,  fillColor: '#fca5a5', fillOpacity: 0.45, interactive: false },
+      },
+    };
+
+    // Quels layers appartiennent à quel opérateur
+    const OPERATOR_LAYERS = {
+      cooltra: ['cooltra_exclusions'],
+      acciona: ['acciona_boundary', 'acciona_exclusions'],
+    };
+
+    function setGeofenceForOperator(operator) {
+      const activeKeys = operator ? (OPERATOR_LAYERS[operator] ?? []) : null;
+      for (const [key, layer] of Object.entries(geofenceLayers)) {
+        if (!layer) continue;
+        if (activeKeys === null) {
+          // Tout restaurer
+          if (!map.hasLayer(layer)) map.addLayer(layer);
+          layer.setStyle(GEOFENCE_STYLES[key]?.default ?? {});
+        } else if (activeKeys.includes(key)) {
+          // Mettre en valeur
+          if (!map.hasLayer(layer)) map.addLayer(layer);
+          layer.setStyle(GEOFENCE_STYLES[key]?.active ?? {});
+        } else {
+          // Masquer
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+        }
+      }
+    }
+
+    // ── Carte ──────────────────────────────────────────────────────────────────
+    const map = L.map('map', { zoomControl: true }).setView(FALLBACK, ZOOM);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // ── Géolocalisation + point utilisateur style Google Maps ─────────────────
+    const MADRID_BOUNDS = { latMin: 40.0, latMax: 40.9, lngMin: -4.1, lngMax: -3.3 };
+
+    let userAccuracyCircle    = null;
+    let userMarker            = null;
+    let userLocationInitialized = false;
+    let currentHeading        = null;  // degrés 0-360 (nord = 0, sens horaire)
+    let currentConeAccuracy   = null;  // demi-angle du cône en degrés
+
+    // Construit l'icône SVG du point bleu + cône directionnel
+    function buildUserIcon(heading, coneHalfAngle) {
+      const cx = 24, cy = 24, r = 60;
+      let conePath = '';
+
+      if (heading !== null && coneHalfAngle !== null && coneHalfAngle <= 90) {
+        // Cône pointant vers le nord (0°), pivoté ensuite par transform
+        const half = Math.min(coneHalfAngle, 89.9) * Math.PI / 180;
+        const x1 = cx + r * Math.sin(-half);
+        const y1 = cy - r * Math.cos(-half);
+        const x2 = cx + r * Math.sin(half);
+        const y2 = cy - r * Math.cos(half);
+        const largeArc = coneHalfAngle > 90 ? 1 : 0;
+        conePath = `<path
+          d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${largeArc},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z"
+          fill="rgba(59,130,246,0.20)" stroke="rgba(59,130,246,0.45)" stroke-width="1" stroke-linejoin="round"/>`;
+      }
+
+      const rotate = (heading !== null) ? `transform="rotate(${heading.toFixed(1)},${cx},${cy})"` : '';
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
+          viewBox="0 0 48 48" class="user-dot-svg" style="overflow:visible">
+        <defs>
+          <filter id="udrop" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.35)"/>
+          </filter>
+        </defs>
+        <g ${rotate}>
+          ${conePath}
+        </g>
+        <circle cx="${cx}" cy="${cy}" r="18" fill="rgba(59,130,246,0.18)"/>
+        <circle cx="${cx}" cy="${cy}" r="11" fill="#3b82f6" stroke="white" stroke-width="3" filter="url(#udrop)"/>
+      </svg>`;
+
+      return L.divIcon({
+        html: svg,
+        className: 'user-dot-icon',
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+      });
+    }
+
+    function updateUserLocation(coords) {
+      const latlng = [coords.latitude, coords.longitude];
+      if (!userLocationInitialized) {
+        // Centrer la carte au premier fix si dans Madrid
+        if (coords.latitude  >= MADRID_BOUNDS.latMin && coords.latitude  <= MADRID_BOUNDS.latMax &&
+            coords.longitude >= MADRID_BOUNDS.lngMin && coords.longitude <= MADRID_BOUNDS.lngMax) {
+          map.setView(latlng, ZOOM);
+        }
+        // Cercle de précision GPS
+        userAccuracyCircle = L.circle(latlng, {
+          radius: coords.accuracy,
+          color: 'rgba(59,130,246,0.35)',
+          fillColor: 'rgba(59,130,246,0.07)',
+          fillOpacity: 1,
+          weight: 1,
+          interactive: false,
+        }).addTo(map);
+        // Marker dot + cône
+        userMarker = L.marker(latlng, {
+          icon: buildUserIcon(currentHeading, currentConeAccuracy),
+          zIndexOffset: 1000,
+          interactive: false,
+        }).addTo(map);
+        userLocationInitialized = true;
+      } else {
+        userAccuracyCircle.setLatLng(latlng).setRadius(coords.accuracy);
+        userMarker.setLatLng(latlng);
+      }
+    }
+
+    // Écoute boussole
+    window.addEventListener('deviceorientation', (e) => {
+      if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
+        // iOS : heading direct
+        currentHeading = e.webkitCompassHeading;
+        currentConeAccuracy = (e.webkitCompassAccuracy > 0 && e.webkitCompassAccuracy < 90)
+          ? e.webkitCompassAccuracy : null;
+      } else if (e.absolute === true && e.alpha !== null) {
+        // Android absolute
+        currentHeading = (360 - e.alpha) % 360;
+        currentConeAccuracy = 20; // Android ne donne pas d'accuracy → valeur fixe
+      }
+      if (userMarker) userMarker.setIcon(buildUserIcon(currentHeading, currentConeAccuracy));
+    }, true);
+
+    // Permission iOS 13+ : demander au premier tap sur la carte
+    map.once('click', async () => {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try { await DeviceOrientationEvent.requestPermission(); } catch {}
+      }
+    });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        ({ coords }) => updateUserLocation(coords),
+        err => console.warn('Géolocalisation :', err.message),
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+      );
+    }
+
+    // ── Géofence ───────────────────────────────────────────────────────────────
+    async function loadGeofence() {
+      try {
+        const res = await fetch(`${BASE_URL}/geofence`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const { cooltra, acciona } = data;
+
+        // Masque monde (basé sur la zone Cooltra) — grise tout l'extérieur
+        if (cooltra?.boundary) {
+          const worldRing = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+          const serviceHoles = cooltra.boundary.coordinates.map(poly =>
+            poly[0].map(([lng, lat]) => [lat, lng])
+          );
+          L.polygon([worldRing, ...serviceHoles], {
+            color:       '#0052ff',
+            weight:      2,
+            dashArray:   '8 5',
+            fillColor:   '#93c5fd',
+            fillOpacity: 0.40,
+            interactive: false,
+          }).addTo(map);
+
+          // Zones interdites Cooltra (bleu)
+          if (cooltra.exclusions) {
+            geofenceLayers.cooltra_exclusions = L.geoJSON(cooltra.exclusions, {
+              style: GEOFENCE_STYLES.cooltra_exclusions.default,
+            }).addTo(map);
+          }
+        }
+
+        // Contours de la zone de service Acciona (rouge pointillé)
+        if (acciona?.boundary) {
+          geofenceLayers.acciona_boundary = L.geoJSON(acciona.boundary, {
+            style: GEOFENCE_STYLES.acciona_boundary.default,
+          }).addTo(map);
+        }
+
+        // Zones interdites Acciona (rouge)
+        if (acciona?.exclusions) {
+          geofenceLayers.acciona_exclusions = L.geoJSON(acciona.exclusions, {
+            style: GEOFENCE_STYLES.acciona_exclusions.default,
+          }).addTo(map);
+        }
+
+      } catch (err) {
+        console.warn('[géofence]', err.message);
+      }
+    }
+    loadGeofence();
+
+    // ── Marqueurs ──────────────────────────────────────────────────────────────
+    // Map : id → { marker, operator }
+    const scooterMarkers = new Map();
+    const knownOps       = new Map(); // operator → color
+
+    const clusterGroup = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      iconCreateFunction(cluster) {
+        const count = cluster.getChildCount();
+        // Couleur dominante parmi les enfants
+        const children = cluster.getAllChildMarkers();
+        const freq = {};
+        children.forEach(m => {
+          const op = m.options._operator ?? 'inconnu';
+          freq[op] = (freq[op] ?? 0) + 1;
+        });
+        const dominant = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+        const color = opColor(dominant);
+        return L.divIcon({
+          className: '',
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
+          html: `<div style="
+            width:42px; height:42px;
+            border-radius:50%;
+            background:${color};
+            border:2.5px solid rgba(255,255,255,.9);
+            box-shadow:0 2px 10px rgba(0,0,0,.35);
+            display:flex; align-items:center; justify-content:center;
+            color:#fff; font-weight:700; font-size:13px;
+          ">${count}</div>`,
+        });
+      },
+    });
+    map.addLayer(clusterGroup);
+
+    function battColor(pct) {
+      if (pct == null) return '#94a3b8';
+      if (pct >= 20)   return '#22c55e';
+      return '#ef4444';
+    }
+
+    function buildIcon(operator, battery) {
+      const color = opColor(operator);
+      const bar = battery != null ? `
+        <div style="
+          width:26px; height:5px;
+          background:rgba(0,0,0,.25);
+          border-radius:999px;
+          overflow:hidden;
+        ">
+          <div style="
+            width:${battery}%;
+            height:100%;
+            background:${battColor(battery)};
+            border-radius:999px;
+          "></div>
+        </div>` : '';
+      return L.divIcon({
+        className:   '',
+        iconSize:    [44, 44],
+        iconAnchor:  [22, 22],
+        popupAnchor: [0, -26],
+        html: `
+          <div style="
+            width:44px; height:44px;
+            border-radius:50%;
+            background:${color};
+            border:2.5px solid rgba(255,255,255,.9);
+            box-shadow:0 2px 10px rgba(0,0,0,.3);
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:3px;
+          ">
+            <span style="font-size:20px; line-height:1; user-select:none;">🛵</span>
+            ${bar}
+          </div>`
+      });
+    }
+
+    // ── Deep links vers les apps opérateurs ────────────────────────────────────
+    // Custom scheme : ouvre l'app directement à la home (map), pas la dernière page active.
+    // L'app reçoit l'intent et navigue vers l'écran initial via onNewIntent.
+    const APP_DEEPLINKS = {
+      cooltra: () => `cooltra://`,
+      // HTTPS scheme = Android App Link vérifié → ouvre l'app directement (plus fiable que le custom scheme).
+      // Aucun deep link vehicle n'existe dans cette app (seul screen/GiftCard est enregistré).
+      acciona: () => `https://app.acciona-motosharing.com`,
+      // cabify:// ouvre l'app sur la home map (section Moped si déjà sélectionnée).
+      // Aucun deep link scooter spécifique n'existe : tous les cabify:// ouvrent JourneyBaseActivity.
+      // PopupVehicleActivity existe mais nécessite l'état interne de la map (ViewModel non accessible).
+      cabify: () => `cabify://`,
+    };
+
+    function appDeepLink(scooter) {
+      const fn = APP_DEEPLINKS[(scooter.operator ?? '').toLowerCase()];
+      return fn ? fn(scooter) : null;
+    }
+
+    // ── Bottom sheet ────────────────────────────────────────────────────────────
+    function showSheet(scooter) {
+      const { id, operator, battery, custom_id, model } = scooter;
+      _currentScooterId = id;   // mémorisé pour trackRedirect()
+      const color = opColor(operator);
+      const label = operator
+        ? operator.charAt(0).toUpperCase() + operator.slice(1)
+        : 'Desconocido';
+
+      // Badge opérateur
+      const badge = document.getElementById('sheet-badge');
+      badge.textContent = `🛵 ${label}`;
+      badge.style.background = color;
+
+      // Détails — custom_id mis en valeur pour le retrouver dans l'app
+      const qrLine = custom_id
+        ? `<div style="font-size:1.1rem;font-weight:700;color:#0f172a;letter-spacing:.04em;">
+             🔢 <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;font-size:1rem;">${custom_id}</code>
+           </div>`
+        : '';
+      const battLine = battery != null
+        ? `<div>Batería: <strong style="color:${battColor(battery)}">${battery}%</strong></div>`
+        : '';
+      const modelLine = model ? `<div style="color:#94a3b8;font-size:.8rem;">${model}</div>` : '';
+      document.getElementById('sheet-details').innerHTML = qrLine + battLine + modelLine;
+
+      // Bouton
+      const btn  = document.getElementById('sheet-btn');
+      const link = appDeepLink(scooter);
+      btn.textContent    = `Abrir en ${label}`;
+      btn.style.background = color;
+      btn.href           = link ?? '#';
+      btn.style.opacity  = link ? '1' : '.4';
+      btn.style.pointerEvents = link ? '' : 'none';
+
+      // Hints opérateur-spécifiques (pas de deep link vehicle possible pour acciona ni cabify)
+      const hint = document.getElementById('sheet-hint');
+      if (hint) {
+        if (operator === 'acciona' && custom_id) {
+          hint.innerHTML = `<span style="font-size:.8rem;color:#64748b;">
+            En la app: botón <strong style="font-family:monospace;letter-spacing:.03em;">ID</strong>
+            → introduce <strong style="font-family:monospace;">${custom_id}</strong>
+          </span>`;
+          hint.style.display = '';
+        } else if (operator === 'cabify' && model) {
+          hint.innerHTML = `<span style="font-size:.8rem;color:#64748b;">
+            En la app Cabify → pestaña <strong>Moped</strong> → busca
+            <strong style="font-family:monospace;">${model}</strong> en el mapa
+          </span>`;
+          hint.style.display = '';
+        } else {
+          hint.style.display = 'none';
+        }
+      }
+
+setGeofenceForOperator(operator);
+      document.getElementById('sheet').classList.add('open');
+      document.getElementById('sheet-backdrop').classList.add('open');
+    }
+
+    function closeSheet() {
+      setGeofenceForOperator(null);
+      document.getElementById('sheet').classList.remove('open');
+      document.getElementById('sheet-backdrop').classList.remove('open');
+    }
+
+    document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
+
+    // ── Tracking redirección ──────────────────────────────────────────────────
+    let _currentScooterId = null;
+    function trackRedirect() {
+      const t = authToken();
+      if (!t || !_currentScooterId) return;
+      fetch('/reservations', {
+        method: 'POST', keepalive: true,
+        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scooter_id: _currentScooterId }),
+      }).catch(() => {});
+    }
+
+    // ── Mise à jour des données ────────────────────────────────────────────────
+    function setStatus(msg, cls) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className   = cls;
+    }
+
+    function refreshLegend() {
+      const container = document.getElementById('legend-items');
+      const empty     = document.getElementById('legend-empty');
+
+      if (knownOps.size === 0) {
+        container.innerHTML = '';
+        container.appendChild(empty);
+        return;
+      }
+
+      container.innerHTML = '';
+      [...knownOps.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([op, color]) => {
+        const div = document.createElement('div');
+        div.className = 'legend-item';
+        div.innerHTML = `
+          <div class="legend-dot" style="background:${color}"></div>
+          <span class="legend-label">${op}</span>`;
+        container.appendChild(div);
+      });
+    }
+
+    async function fetchAndUpdate() {
+      setStatus('Actualizando…', 'loading');
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Servidor: HTTP ${res.status}`);
+        const scooters = await res.json();
+
+        if (!Array.isArray(scooters)) throw new Error('Respuesta inesperada');
+
+        // Reconstruire les marqueurs depuis zéro (simple + compatible cluster)
+        clusterGroup.clearLayers();
+        scooterMarkers.clear();
+
+        scooters.forEach((scooter) => {
+          const { id, lat, lng, operator, battery } = scooter;
+          if (!id || lat == null || lng == null) return;
+
+          knownOps.set((operator ?? 'inconnu').toLowerCase(), opColor(operator));
+
+          const marker = L.marker([lat, lng], {
+            icon: buildIcon(operator, battery),
+            _operator: (operator ?? 'inconnu').toLowerCase(),
+          }).on('click', () => showSheet(scooterMarkers.get(id).scooter));
+
+          scooterMarkers.set(id, { marker, operator, scooter });
+          clusterGroup.addLayer(marker);
+        });
+
+        refreshLegend();
+
+        const n   = scooters.length;
+        const now = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setStatus(`${n} scooter${n !== 1 ? 's' : ''} · ${now}`, 'ok');
+
+      } catch (err) {
+        setStatus(`Error — ${err.message}`, 'error');
+        console.error('[scooters]', err);
+      }
+    }
+
+    // ── Compte à rebours ───────────────────────────────────────────────────────
+    let _cdTimer  = null;
+    let _cdSecond = 0;
+
+    function startCountdown() {
+      clearInterval(_cdTimer);
+      _cdSecond = REFRESH_MS / 1000;
+      const el  = document.getElementById('countdown');
+      el.textContent = `(actualiza en ${_cdSecond}s)`;
+
+      _cdTimer = setInterval(() => {
+        _cdSecond--;
+        if (_cdSecond <= 0) {
+          el.textContent = '';
+          clearInterval(_cdTimer);
+        } else {
+          el.textContent = `(actualiza en ${_cdSecond}s)`;
+        }
+      }, 1000);
+    }
+
+    // ── Boucle principale ──────────────────────────────────────────────────────
+    function tick() {
+      fetchAndUpdate();
+      startCountdown();
+    }
+
+    renderAuthNav();
+    tick();
+    setInterval(tick, REFRESH_MS);
+
+    // ── Service Worker ─────────────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    // ── Bannière PWA "Ajouter à l'écran d'accueil" ─────────────────────────────
+    (function initPwaBanner() {
+      const DISMISS_KEY  = 'pwa_dismissed_until';
+      const banner       = document.getElementById('pwa-banner');
+      const hintEl       = document.getElementById('pwa-banner-hint');
+      const installBtn   = document.getElementById('pwa-install-btn');
+      const dismissBtn   = document.getElementById('pwa-dismiss-btn');
+      let deferredPrompt = null;
+      let shown          = false;
+
+      function isDismissed() {
+        const v = localStorage.getItem(DISMISS_KEY);
+        return v && Date.now() < parseInt(v);
+      }
+      function isStandalone() {
+        return window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone === true;
+      }
+      function show() {
+        if (shown || isDismissed() || isStandalone()) return;
+        shown = true;
+        banner.classList.add('visible');
+        // Déclenche l'animation d'entrée (slide up) après un tick
+        requestAnimationFrame(() => requestAnimationFrame(() => banner.classList.add('shown')));
+      }
+      function hide(saveDismiss) {
+        banner.classList.remove('shown');
+        setTimeout(() => banner.classList.remove('visible'), 350);
+        if (saveDismiss) {
+          localStorage.setItem(DISMISS_KEY, Date.now() + 30 * 24 * 60 * 60 * 1000);
+        }
+      }
+
+      // Android/Chrome : prompt natif beforeinstallprompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Affiche le bouton 📲 dans le header (visible même si la bannière a été fermée)
+        const navBtn = document.getElementById('pwa-install-nav');
+        if (navBtn && !isStandalone()) navBtn.style.display = '';
+        setTimeout(show, 2000); // petit délai pour pas être intrusif dès le chargement
+      });
+
+      // Détection navigation privée (incognito) — Chrome bloque prompt() en incognito
+      async function isIncognito() {
+        try {
+          const { quota } = await navigator.storage.estimate();
+          return quota < 120 * 1024 * 1024; // incognito : quota limité ~120 Mo
+        } catch { return false; }
+      }
+
+      async function triggerInstall() {
+        if (!deferredPrompt) {
+          hintEl.innerHTML = 'Menú <strong>⋮</strong> → <strong>"Añadir a la pantalla de inicio"</strong>';
+          installBtn.textContent = 'OK';
+          installBtn.onclick = () => hide(true);
+          return;
+        }
+        // Vérifier si on est en navigation privée
+        if (await isIncognito()) {
+          hintEl.innerHTML = '⚠️ Navega en modo <strong>normal</strong> (no privado) para instalar';
+          installBtn.textContent = 'OK';
+          installBtn.onclick = () => hide(true);
+          return;
+        }
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        hide(outcome === 'accepted');
+      }
+
+      installBtn.addEventListener('click', triggerInstall);
+
+      // Bouton d'install dans la nav (contourne le cooldown Chrome après désinstall)
+      window._pwaInstallTrigger = triggerInstall;
+      window._pwaShow = show;
+      window._pwaHasPrompt = () => !!deferredPrompt;
+
+      window.addEventListener('appinstalled', () => {
+        hide(true);
+        const navBtn = document.getElementById('pwa-install-nav');
+        if (navBtn) navBtn.style.display = 'none';
+      });
+
+      // iOS Safari : bouton ⎙
+      const isIos    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
+      if (isIos && isSafari && !isStandalone()) {
+        hintEl.innerHTML   = 'Pulsa <strong>⎙</strong> y luego <strong>En pantalla de inicio</strong>';
+        installBtn.textContent = 'Entendido';
+        installBtn.onclick = () => hide(false);
+        setTimeout(show, 1500);
+      }
+
+      // Fallback mobile : si beforeinstallprompt n'a pas tiré après 5s
+      // (HTTP local, Firefox, Samsung Browser, etc.) → instructions manuelles
+      const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+      if (isMobile && !isIos) {
+        setTimeout(() => {
+          if (!shown && !isDismissed() && !isStandalone()) {
+            // Pas de prompt natif : afficher les instructions manuelles
+            hintEl.innerHTML = 'Acceso directo en pantalla de inicio';
+            installBtn.textContent = 'Añadir';
+            installBtn.onclick = () => {
+              hintEl.innerHTML = 'Menú <strong>⋮</strong> → <strong>"Añadir a la pantalla de inicio"</strong>';
+              installBtn.textContent = 'Ok, entendido';
+              installBtn.onclick = () => hide(true);
+            };
+            show();
+          }
+        }, 5000);
+      }
+
+      dismissBtn.addEventListener('click', () => hide(true));
+    })();
+
+    // ── Home overlay ──────────────────────────────────────────────────────
+    function openHomeOverlay() {
+      const el = document.getElementById('home-overlay');
+      el.style.display = 'flex';
+      // Auth link
+      const authLink = document.getElementById('home-auth-link');
+      if (authLink) {
+        if (localStorage.getItem('scootmap_token')) {
+          authLink.textContent = '👤 Mi perfil';
+          authLink.href = '/profile';
+        } else {
+          authLink.textContent = '👤 Iniciar sesión';
+          authLink.href = '/login';
+        }
+      }
+      // Fermer en cliquant sur le fond
+      el.onclick = (e) => { if (e.target === el) closeHomeOverlay(); };
+    }
+
+    function closeHomeOverlay() {
+      document.getElementById('home-overlay').style.display = 'none';
+    }
+
+    async function homeHandleInstall() {
+      const msgEl = document.getElementById('home-install-msg');
+      msgEl.style.display = 'block';
+
+      // Incognito check
+      try {
+        const { quota } = await navigator.storage.estimate();
+        if (quota < 120 * 1024 * 1024) {
+          msgEl.innerHTML = '⚠️ Abre en modo <strong>normal</strong> (no privado) para instalar.';
+          return;
+        }
+      } catch {}
+
+      if (window._pwaInstallTrigger && window._pwaHasPrompt && window._pwaHasPrompt()) {
+        // deferredPrompt disponible : déclencher directement
+        closeHomeOverlay();
+        window._pwaShow && window._pwaShow();
+        window._pwaInstallTrigger();
+        msgEl.style.display = 'none';
+      } else {
+        // Pas de prompt natif (iOS ou pas de deferredPrompt)
+        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (isIos) {
+          msgEl.innerHTML = 'En Safari: pulsa <strong>⎙</strong> → <strong>"En pantalla de inicio"</strong>';
+        } else {
+          msgEl.innerHTML = 'Menú <strong>⋮</strong> → <strong>"Añadir a pantalla de inicio"</strong>';
+        }
+      }
+    }
+
+    // ── Tracking de session (statistiques) ───────────────────────────────
+    (async () => {
+      const t = localStorage.getItem('scootmap_token');
+      if (!t) return;
+      const startTime = Date.now();
+      let sid = null;
+      try {
+        const r = await fetch('/stats/session', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        });
+        if (r.ok) sid = (await r.json()).id;
+      } catch {}
+      if (!sid) return;
+
+      const ping = () => fetch('/stats/ping', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid, duration: Math.round((Date.now() - startTime) / 1000) }),
+      }).catch(() => {});
+
+      const iv = setInterval(ping, 30_000);
+      window.addEventListener('beforeunload', () => {
+        clearInterval(iv);
+        fetch('/stats/ping', {
+          method: 'POST', keepalive: true,
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, duration: Math.round((Date.now() - startTime) / 1000) }),
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

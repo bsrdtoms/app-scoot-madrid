@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "ScootMap",
+    "slug": "scootmap",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.scootmap.app",
+      "config": {
+        "googleMapsApiKey": "VOTRE_CLE_API_GOOGLE_MAPS_IOS"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      },
+      "package": "com.scootmap.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "VOTRE_CLE_API_GOOGLE_MAPS_ANDROID"
+        }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "ScootMap utilise votre position pour centrer la carte."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "votre-project-id-eas"
+      }
+    }
+  }
+}

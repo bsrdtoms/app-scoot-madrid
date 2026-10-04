@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScootMap — Scooters en Madrid</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/auth-common.css">
+  <style>
+    /* ── Page home plein écran ── */
+    body { justify-content: center; align-items: center; }
+
+    .home-wrap {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: 2rem 1.2rem;
+      width: 100%;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .hero-logo {
+      width: 100px;
+      height: 100px;
+      border-radius: 26px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.1),
+        0 12px 48px rgba(59,130,246,.45),
+        0 4px 16px rgba(0,0,0,.4);
+      margin-bottom: 1.2rem;
+      animation: float 4s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-7px); }
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -.04em;
+      background: linear-gradient(135deg, #f8fafc 30%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: .4rem;
+    }
+    .hero-desc {
+      font-size: .95rem;
+      color: #94a3b8;
+      max-width: 300px;
+      margin: 0 auto .9rem;
+      line-height: 1.6;
+    }
+
+    /* ── Opérateurs pills ── */
+    .ops {
+      display: flex;
+      gap: .5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .op-pill {
+      font-size: .72rem;
+      font-weight: 700;
+      padding: .25rem .65rem;
+      border-radius: 999px;
+      letter-spacing: .02em;
+      border: 1px solid currentColor;
+      opacity: .85;
+    }
+    .op-cooltra { color: #4d8bff; }
+    .op-acciona { color: #ff5c7a; }
+    .op-cabify  { color: #a78bfa; }
+
+    /* ── Card de boutons ── */
+    .action-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 24px;
+      padding: 1.8rem 1.6rem;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 4px 16px rgba(0,0,0,.3);
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+    }
+
+    /* Bouton carte (primary) */
+    .btn-map {
+      width: 100%;
+      padding: .9rem;
+      background: linear-gradient(135deg, #3b82f6 0%, #6d28d9 100%);
+      color: #fff;
+      border: 0;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .01em;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      transition: filter .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(59,130,246,.35);
+    }
+    .btn-map:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-map:active { transform: translateY(0); }
+
+    /* Bouton login (outlined) */
+    .btn-login {
+      width: 100%;
+      padding: .85rem;
+      background: rgba(255,255,255,.06);
+      color: #f8fafc;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      transition: background .2s, border-color .2s;
+    }
+    .btn-login:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); }
+
+    /* Bouton install PWA */
+    .btn-install {
+      width: 100%;
+      padding: .85rem;
+      background: rgba(59,130,246,.12);
+      color: #93c5fd;
+      border: 1px solid rgba(59,130,246,.3);
+      border-radius: 14px;
+      font-size: .92rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      transition: background .2s, border-color .2s;
+    }
+    .btn-install:hover { background: rgba(59,130,246,.2); border-color: rgba(59,130,246,.5); }
+
+    /* Message inline sous le bouton install */
+    .install-msg {
+      font-size: .8rem;
+      color: #64748b;
+      text-align: center;
+      display: none;
+      padding: .3rem 0;
+      line-height: 1.5;
+    }
+
+    /* Lien signup */
+    .signup-link {
+      text-align: center;
+      font-size: .83rem;
+      color: #475569;
+      margin-top: .2rem;
+    }
+    .signup-link a { color: #60a5fa; text-decoration: none; font-weight: 600; }
+    .signup-link a:hover { color: #93c5fd; }
+
+    /* Badge "GRATIS" */
+    .badge-free {
+      display: inline-block;
+      font-size: .65rem;
+      font-weight: 700;
+      background: rgba(16,185,129,.2);
+      color: #6ee7b7;
+      border: 1px solid rgba(16,185,129,.3);
+      border-radius: 999px;
+      padding: .1rem .45rem;
+      letter-spacing: .05em;
+      vertical-align: middle;
+      margin-left: .4rem;
+    }
+
+    @media (max-width: 380px) {
+      .hero h1 { font-size: 2rem; }
+      .hero-logo { width: 84px; height: 84px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="home-wrap">
+
+    <!-- Hero -->
+    <div class="hero">
+      <img src="/icon-192.png" alt="ScootMap" class="hero-logo">
+      <h1>ScootMap</h1>
+      <p class="hero-desc">
+        Localiza en tiempo real todos los scooters de alquiler disponibles en Madrid —
+        Cooltra, Acciona y Cabify en un solo mapa.
+        <span class="badge-free">GRATIS</span>
+      </p>
+      <div class="ops">
+        <span class="op-pill op-cooltra">Cooltra</span>
+        <span class="op-pill op-acciona">Acciona</span>
+        <span class="op-pill op-cabify">Cabify</span>
+      </div>
+    </div>
+
+    <!-- Boutons -->
+    <div class="action-card">
+
+      <!-- Bouton install PWA (toujours visible) -->
+      <button class="btn-install" id="install-btn" onclick="handleInstall()">
+        📲 Añadir a la pantalla de inicio
+      </button>
+      <div class="install-msg" id="install-msg"></div>
+
+      <!-- Accéder à la carte -->
+      <a href="/" class="btn-map">
+        🗺️ Abrir el mapa
+      </a>
+
+      <!-- Se connecter -->
+      <a href="/login" class="btn-login" id="btn-login">
+        👤 Iniciar sesión
+      </a>
+
+      <div class="signup-link">
+        ¿Sin cuenta? <a href="/signup">Crear una gratis</a>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // ── Masquer "Iniciar sesión" si déjà connecté ─────────────────────────
+    if (localStorage.getItem('scootmap_token')) {
+      const btn = document.getElementById('btn-login');
+      btn.textContent = '👤 Mi perfil';
+      btn.href = '/profile';
+    }
+
+    // ── PWA install logic ─────────────────────────────────────────────────
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Met à jour le bouton pour indiquer que l'install native est dispo
+      document.getElementById('install-btn').style.borderColor = 'rgba(59,130,246,.6)';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      showMsg('✅ ¡Añadido a la pantalla de inicio!', '#6ee7b7');
+      document.getElementById('install-btn').disabled = true;
+      document.getElementById('install-btn').style.opacity = '.5';
+    });
+
+    function showMsg(text, color) {
+      const el = document.getElementById('install-msg');
+      el.style.display = 'block';
+      el.style.color = color || '#94a3b8';
+      el.innerHTML = text;
+    }
+
+    async function isIncognito() {
+      try {
+        const { quota } = await navigator.storage.estimate();
+        return quota < 120 * 1024 * 1024;
+      } catch { return false; }
+    }
+
+    async function handleInstall() {
+      // Détection navigation privée
+      if (await isIncognito()) {
+        showMsg('⚠️ Abre esta página en modo <strong>normal</strong> (no privado) para instalar.');
+        return;
+      }
+
+      if (deferredPrompt) {
+        // Prompt natif Chrome/Android
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if (outcome === 'accepted') {
+          showMsg('✅ ¡Instalando ScootMap…');
+        } else {
+          showMsg('Puedes instalarlo más tarde desde este botón.');
+        }
+      } else {
+        // Pas de prompt natif : instructions manuelles
+        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (isIos) {
+          showMsg('En Safari: pulsa <strong>⎙</strong> → <strong>"En pantalla de inicio"</strong>');
+        } else {
+          showMsg('En Chrome: menú <strong>⋮</strong> → <strong>"Añadir a pantalla de inicio"</strong>');
+        }
+      }
+    }
+  </script>
+</body>
+</html>

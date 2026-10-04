@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+mobile/node_modules/
+
+# Secrets & env
+.env
+.env.*
+!.env.example
+
+# Database (contient des données utilisateurs)
+*.db
+*.db-shm
+*.db-wal
+scootmap.db*
+
+# Reverse-engineering / APK (non publiés)
+apk-patch/
+*.apk
+*.keystore
+frida_connect.py
+ssl_hook.js
+
+# OS / éditeur
+.DS_Store
+*.log
